@@ -1,47 +1,62 @@
 #!/usr/bin/env python3
-"""
-Provide some stats about Nginx logs stored in MongoDB
-Database: logs, Collection: nginx, Display same as example
-first line: x logs, x number of documents in this collection
-second line: Methods
-5 lines with method = ["GET", "POST", "PUT", "PATCH", "DELETE"]
-one line with method=GET, path=/status
-improve by adding top 10 most present IPs in collection nginx
-database logs
-"""
+""" scripts that prints nginx logs stats mongo db """
 from pymongo import MongoClient
 
 
-METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
-PIPE = [{"$group": {"_id": "$ip", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}, {"$limit": 10}]
-
-
-def log_stats(mongo_collection, option=None):
+def main() -> None:
+    """ Main funtion for the script algorithm
     """
-    Prototype: def log_stats(mongo_collection, option=None):
-    Provide some stats about Nginx logs stored in MongoDB
-    """
-    items = {}
-    if option:
-        value = mongo_collection.count_documents(
-            {"method": {"$regex": option}})
-        print(f"\tmethod {option}: {value}")
-        return
+    client = MongoClient('mongodb://127.0.0.1:27017')
+    logs_collection = client.logs.nginx
+    # print the number of documents in the collection
+    print(f'{logs_collection.count_documents({})} logs')
+    # print the Methods
+    print('Methods:')
+    # get the status
+    status_count: int = logs_collection.count_documents({"method": "GET",
+                                                         "path": "/status"})
+    methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    # loop through the methods
+    for method in methods:
+        method_count: int = logs_collection.count_documents({"method": method})
+        print(f'\tmethod {method}: {method_count}')
 
-    result = mongo_collection.count_documents(items)
-    print(f"{result} logs")
-    print("Methods:")
-    for method in METHODS:
-        log_stats(nginx_collection, method)
-    status_check = mongo_collection.count_documents({"path": "/status"})
-    print(f"{status_check} status check")
+    # print the status check
+    print(f'{status_count} status check')
+
     print("IPs:")
 
-    for ip in mongo_collection.aggregate(PIPE):
-        print(f"\t{ip.get('_id')}: {ip.get('count')}")
+    # carry out aggregate on the collection
+    # create the pipeline
+    pipeline = [
+        # group for accumulations
+        {"$group": {
+            "_id": "$ip", "count": {
+                "$sum": 1
+            }
+        }
+        },
+        # sort
+        {
+            "$sort": {
+                "count": -1
+            }
+        },
+        # limit
+        {"$limit": 10},
+        # start a new project to pass to the next satge
+        {
+            # remove the _id column, rename _id as ip, include count column
+            "$project": {"_id": 0, "ip": "$_id", "count": 1}
+        }
+    ]
+    top_10_ips = logs_collection.aggregate(pipeline)
+    # loop through the ip arrays
+    for ip_obj in top_10_ips:
+        count = ip_obj.get("count")
+        ip = ip_obj.get("ip")
+        print(f'\t{ip}: {count}')
 
 
 if __name__ == "__main__":
-    nginx_collection = MongoClient('mongodb://127.0.0.1:27017').logs.nginx
-    log_stats(nginx_collection)
+    main()
