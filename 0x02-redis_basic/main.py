@@ -1,4 +1,6 @@
-in file
+#!/usr/bin/env python3
+"""
+Main file
 """
 import redis
 
